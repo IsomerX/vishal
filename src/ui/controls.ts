@@ -24,6 +24,7 @@ export function createController(
   let animFrameId: number | null = null;
   let speed = 100; // instructions per second
   let lastFrameTime: number | null = null;
+  let stepDebt = 0; // fractional steps accumulated across frames
   const listeners: Array<(state: VMState) => void> = [];
 
   function notify(): void {
@@ -44,19 +45,23 @@ export function createController(
 
     if (lastFrameTime === null) {
       lastFrameTime = timestamp;
+      animFrameId = requestAnimationFrame(animationLoop);
+      return;
     }
 
     const elapsed = (timestamp - lastFrameTime) / 1000; // seconds
     lastFrameTime = timestamp;
 
-    // Calculate how many steps based on speed and elapsed time, cap at 100
-    let stepsToRun = Math.floor(elapsed * speed);
-    if (stepsToRun < 1) stepsToRun = 1;
-    if (stepsToRun > 100) stepsToRun = 100;
+    // Accumulate fractional steps — at 1 step/sec, we add ~0.016 per frame
+    // and only execute when we've accumulated >= 1 full step
+    stepDebt += elapsed * speed;
+    const stepsToRun = Math.min(Math.floor(stepDebt), 500);
+    stepDebt -= stepsToRun;
 
     for (let i = 0; i < stepsToRun; i++) {
       if (state.halted) {
         running = false;
+        stepDebt = 0;
         notify();
         return;
       }
@@ -64,7 +69,7 @@ export function createController(
       state = step(state);
     }
 
-    notify();
+    if (stepsToRun > 0) notify();
     animFrameId = requestAnimationFrame(animationLoop);
   }
 
@@ -94,6 +99,7 @@ export function createController(
       if (running || state.halted) return;
       running = true;
       lastFrameTime = null;
+      stepDebt = 0;
       animFrameId = requestAnimationFrame(animationLoop);
       notify();
     },
@@ -105,6 +111,7 @@ export function createController(
         animFrameId = null;
       }
       lastFrameTime = null;
+      stepDebt = 0;
       notify();
     },
 
@@ -115,6 +122,7 @@ export function createController(
         animFrameId = null;
       }
       lastFrameTime = null;
+      stepDebt = 0;
       timeTravel.reset();
       // Caller is responsible for providing fresh VM state via setState
       notify();

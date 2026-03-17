@@ -1,5 +1,5 @@
 import {
-  VMState, Registers, RegIndex,
+  VMState, RegIndex,
   getRegValue, setRegValue,
 } from './types';
 import {

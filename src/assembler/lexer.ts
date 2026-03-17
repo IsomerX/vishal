@@ -1,4 +1,4 @@
-import { Token, TokenType } from './types';
+import { Token } from './types';
 
 const INSTRUCTIONS = new Set([
   'NOP', 'HLT', 'MOV', 'LOAD', 'STORE', 'ADD', 'SUB', 'INC', 'DEC',

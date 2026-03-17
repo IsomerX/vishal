@@ -141,10 +141,18 @@ export function updateStackView(
   const stackBottom = memSize - 1;
 
   if (stackTop > stackBottom) {
-    // Stack is empty
-    container.innerHTML = '';
-    if (container.textContent !== 'Empty') {
-      container.textContent = 'Empty';
+    const emptyClass = 'stack-empty';
+    const existingEmpty = container.querySelector<HTMLElement>(`.${emptyClass}`);
+    const existingEntries = container.querySelectorAll<HTMLElement>('.stack-entry');
+
+    existingEntries.forEach(entry => entry.remove());
+
+    if (!existingEmpty) {
+      container.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = emptyClass;
+      empty.textContent = 'Empty';
+      container.appendChild(empty);
     }
     return;
   }
@@ -158,10 +166,7 @@ export function updateStackView(
   // Reconcile DOM nodes
   const existing = container.querySelectorAll<HTMLElement>('.stack-entry');
 
-  // Clear any stale "Empty" text node first
-  if (container.childNodes.length > 0 && existing.length === 0) {
-    container.innerHTML = '';
-  }
+  container.querySelector('.stack-empty')?.remove();
 
   addrs.forEach((addr, i) => {
     let entry = existing[i] as HTMLElement | undefined;

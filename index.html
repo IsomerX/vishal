@@ -3,13 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Browser VM</title>
+  <title>Vishal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>Browser VM</h1>
+      <div id="header-left">
+        <h1>Vishal</h1>
+        <div id="view-mode" aria-label="Workspace view">
+          <button type="button" class="view-toggle is-active" data-view="scene">Scene</button>
+          <button type="button" class="view-toggle" data-view="memory">Memory</button>
+        </div>
+      </div>
       <div id="memory-config">
         <label>Memory:
           <select id="memory-size">
@@ -23,8 +31,19 @@
       </div>
     </header>
     <main>
-      <div id="grid-container">
-        <canvas id="hex-grid"></canvas>
+      <div id="workspace">
+        <div id="scene-container" class="workspace-view is-active">
+          <canvas id="cpu-scene" aria-label="3D CPU scene"></canvas>
+          <div id="scene-overlay">
+            <div id="scene-badge">3D CPU Scene</div>
+            <div id="scene-stage">Package View</div>
+            <div id="scene-detail">Zoom through the package to expose the die, register towers, and memory fabric.</div>
+            <div id="scene-telemetry">Cycle 0 · PC 0x0000</div>
+          </div>
+        </div>
+        <div id="grid-container" class="workspace-view">
+          <canvas id="hex-grid"></canvas>
+        </div>
       </div>
       <aside id="detail-panel">
         <section id="registers-section">
@@ -60,6 +79,13 @@
           <h3>Memory Usage</h3>
           <div id="memory-stats"></div>
         </section>
+        <section id="display-stats-section">
+          <h3>Display</h3>
+          <div id="display-preview">
+            <canvas id="pixel-display" aria-label="VRAM pixel display"></canvas>
+          </div>
+          <div id="display-stats"></div>
+        </section>
         <section id="error-section" hidden>
           <div id="error-message"></div>
         </section>
@@ -68,20 +94,32 @@
     <footer>
       <div id="editor-container">
         <div id="editor-header">
-          <label>Examples:
-            <select id="examples-dropdown">
-              <option value="">— Select —</option>
-              <option value="bubble-sort">Bubble Sort</option>
-              <option value="counter">Counter</option>
-              <option value="fibonacci">Fibonacci</option>
-            </select>
-          </label>
+          <div id="editor-options">
+            <label>Language:
+              <select id="source-language">
+                <option value="assembly" selected>Assembly</option>
+                <option value="tiny-c">Tiny C-like</option>
+              </select>
+            </label>
+            <label>Examples:
+              <select id="examples-dropdown">
+                <option value="">— Select —</option>
+                <option value="bubble-sort">Bubble Sort</option>
+                <option value="counter">Counter</option>
+                <option value="fibonacci">Fibonacci</option>
+                <option value="game-of-life">Game of Life</option>
+                <option value="pixel-test">Pixel Test</option>
+                <option value="tiny-c-counter">Tiny C Counter</option>
+              </select>
+            </label>
+          </div>
           <button id="btn-assemble">Assemble &amp; Load</button>
         </div>
         <textarea id="code-editor" spellcheck="false" placeholder="Write assembly here..."></textarea>
         <div id="assembler-errors"></div>
       </div>
     </footer>
+    <div id="tribute">Named after my late father, Vishal &mdash; his name means <em>vast</em>. &ensp;·&ensp; <a href="https://github.com/isomerx" target="_blank" rel="noopener">github.com/isomerx</a></div>
   </div>
   <script type="module" src="/src/ui/app.ts"></script>
 </body>

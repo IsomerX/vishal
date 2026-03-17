@@ -55,7 +55,7 @@ export function createController(
     // Accumulate fractional steps — at 1 step/sec, we add ~0.016 per frame
     // and only execute when we've accumulated >= 1 full step
     stepDebt += elapsed * speed;
-    const stepsToRun = Math.min(Math.floor(stepDebt), 500);
+    const stepsToRun = Math.min(Math.floor(stepDebt), 5000);
     stepDebt -= stepsToRun;
 
     for (let i = 0; i < stepsToRun; i++) {

@@ -2,9 +2,9 @@ import { VMState, REG_NAMES, FLAG_Z, FLAG_C } from '../vm/types';
 import {
   OP_NOP, OP_HLT, OP_MOV_IMM, OP_MOV_REG,
   OP_LOAD_ABS, OP_STORE_ABS, OP_LOAD_IND, OP_STORE_IND,
-  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_CMP,
+  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_AND, OP_OR, OP_XOR, OP_SHL, OP_SHR, OP_CMP,
   OP_JMP, OP_JZ, OP_JNZ, OP_JG, OP_JL,
-  OP_PUSH, OP_POP, OP_CALL, OP_RET,
+  OP_PUSH, OP_POP, OP_CALL, OP_RET, OP_VSTORE, OP_VLOAD, OP_VCOPY,
   INSTRUCTION_SIZE,
 } from '../vm/opcodes';
 
@@ -22,6 +22,7 @@ export function describeNextInstruction(state: VMState): string {
   }
 
   const mem = state.memory;
+  const vram = state.vram;
   const regs = state.registers;
   const pc = regs.PC;
 
@@ -92,6 +93,25 @@ export function describeNextInstruction(state: VMState): string {
     case OP_DEC:
       return `Decrement ${rxName} by 1. Currently ${rxVal}, will become ${(rxVal - 1) & 0xFF}.`;
 
+    case OP_AND:
+      return `Bitwise AND ${rxName} (${hex(rxVal)}) with ${ryName} (${hex(ryVal)}). Result: ${hex(rxVal & ryVal)}.`;
+
+    case OP_OR:
+      return `Bitwise OR ${rxName} (${hex(rxVal)}) with ${ryName} (${hex(ryVal)}). Result: ${hex(rxVal | ryVal)}.`;
+
+    case OP_XOR:
+      return `Bitwise XOR ${rxName} (${hex(rxVal)}) with ${ryName} (${hex(ryVal)}). Result: ${hex(rxVal ^ ryVal)}.`;
+
+    case OP_SHL: {
+      const result = ryVal >= 8 ? 0 : (rxVal << ryVal) & 0xFF;
+      return `Shift ${rxName} left by ${ryVal} bits. ${hex(rxVal)} becomes ${hex(result)}.`;
+    }
+
+    case OP_SHR: {
+      const result = ryVal >= 8 ? 0 : (rxVal >>> ryVal) & 0xFF;
+      return `Shift ${rxName} right by ${ryVal} bits. ${hex(rxVal)} becomes ${hex(result)}.`;
+    }
+
     case OP_CMP: {
       const diff = rxVal - ryVal;
       let relation = 'equal to';
@@ -139,6 +159,26 @@ export function describeNextInstruction(state: VMState): string {
       const hi = mem[regs.SP + 2] ?? 0;
       const retAddr = (hi << 8) | lo;
       return `Return from subroutine. Popping return address ${hex16(retAddr)} from the stack.`;
+    }
+
+    case OP_VSTORE: {
+      const a = addr16(2);
+      const px = a % 32;
+      const py = Math.floor(a / 32);
+      return `Write ${rxName} (${hex(rxVal)}) to VRAM address ${hex16(a)} → pixel (${px}, ${py}). Color: ${describeRgb332Color(rxVal)}.`;
+    }
+
+    case OP_VLOAD: {
+      const a = addr16(2);
+      const px = a % 32;
+      const py = Math.floor(a / 32);
+      const val = a < vram.length ? vram[a] : 0;
+      return `Read VRAM address ${hex16(a)} → pixel (${px}, ${py}) into ${rxName}. Current color: ${describeRgb332Color(val)} (${hex(val)}).`;
+    }
+
+    case OP_VCOPY: {
+      const srcAddr = rxVal | ((regs[R((rx + 1) & 7) as keyof typeof regs] as number) << 8);
+      return `Copy 1024 bytes from main memory at ${hex16(srcAddr)} to VRAM. Full screen refresh.`;
     }
 
     default:
@@ -199,4 +239,27 @@ export function updateMemoryStats(container: HTMLElement, stats: MemoryStats): v
 function formatBytes(bytes: number): string {
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} B`;
+}
+
+function describeRgb332Color(value: number): string {
+  switch (value & 0xFF) {
+    case 0x00:
+      return 'black';
+    case 0xFF:
+      return 'white';
+    case 0xE0:
+      return 'red';
+    case 0x1C:
+      return 'green';
+    case 0x03:
+      return 'blue';
+    case 0xFC:
+      return 'yellow';
+    case 0x1F:
+      return 'cyan';
+    case 0xE3:
+      return 'magenta';
+    default:
+      return 'RGB332 value';
+  }
 }

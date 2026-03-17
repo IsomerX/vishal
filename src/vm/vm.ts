@@ -6,13 +6,13 @@ import {
   OP_NOP, OP_HLT,
   OP_MOV_IMM, OP_MOV_REG,
   OP_LOAD_ABS, OP_STORE_ABS, OP_LOAD_IND, OP_STORE_IND,
-  OP_ADD, OP_SUB, OP_INC, OP_DEC,
+  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_AND, OP_OR, OP_XOR, OP_SHL, OP_SHR,
   OP_CMP,
   OP_JMP, OP_JZ, OP_JNZ, OP_JG, OP_JL,
-  OP_PUSH, OP_POP, OP_CALL, OP_RET,
+  OP_PUSH, OP_POP, OP_CALL, OP_RET, OP_VSTORE, OP_VLOAD, OP_VCOPY,
   INSTRUCTION_SIZE,
 } from './opcodes';
-import { computeFlags, checkCondition } from './flags';
+import { computeFlags, computeBitwiseFlags, computeShiftFlags, checkCondition } from './flags';
 
 /**
  * Create a fresh VM state.
@@ -20,6 +20,7 @@ import { computeFlags, checkCondition } from './flags';
 export function createVM(memorySize = 4096): VMState {
   return {
     memory: new Uint8Array(memorySize),
+    vram: new Uint8Array(1024),
     registers: {
       PC: 0,
       SP: memorySize - 1,
@@ -38,6 +39,7 @@ export function createVM(memorySize = 4096): VMState {
 export function cloneState(state: VMState): VMState {
   return {
     memory: new Uint8Array(state.memory),
+    vram: new Uint8Array(state.vram),
     registers: { ...state.registers },
     halted: state.halted,
     error: state.error,
@@ -57,6 +59,7 @@ export function step(state: VMState): VMState {
 
   const s = cloneState(state);
   const mem = s.memory;
+  const vram = s.vram;
   const regs = s.registers;
   const memSize = mem.length;
 
@@ -69,6 +72,10 @@ export function step(state: VMState): VMState {
 
   function checkMemAddr(addr: number): boolean {
     return addr >= 0 && addr < memSize;
+  }
+
+  function checkVramAddr(addr: number): boolean {
+    return addr >= 0 && addr < vram.length;
   }
 
   // --- PC bounds check ---------------------------------------------------
@@ -188,6 +195,55 @@ export function step(state: VMState): VMState {
       break;
     }
 
+    case OP_AND: {
+      const rx = byte(1) as RegIndex;
+      const ry = byte(2) as RegIndex;
+      const result = getRegValue(regs, rx) & getRegValue(regs, ry);
+      setRegValue(regs, rx, result);
+      regs.FLAGS = computeBitwiseFlags(result);
+      break;
+    }
+
+    case OP_OR: {
+      const rx = byte(1) as RegIndex;
+      const ry = byte(2) as RegIndex;
+      const result = getRegValue(regs, rx) | getRegValue(regs, ry);
+      setRegValue(regs, rx, result);
+      regs.FLAGS = computeBitwiseFlags(result);
+      break;
+    }
+
+    case OP_XOR: {
+      const rx = byte(1) as RegIndex;
+      const ry = byte(2) as RegIndex;
+      const result = getRegValue(regs, rx) ^ getRegValue(regs, ry);
+      setRegValue(regs, rx, result);
+      regs.FLAGS = computeBitwiseFlags(result);
+      break;
+    }
+
+    case OP_SHL: {
+      const rx = byte(1) as RegIndex;
+      const ry = byte(2) as RegIndex;
+      const value = getRegValue(regs, rx);
+      const shiftAmount = getRegValue(regs, ry);
+      const result = shiftAmount >= 8 ? 0 : (value << shiftAmount) & 0xFF;
+      setRegValue(regs, rx, result);
+      regs.FLAGS = computeShiftFlags(value, shiftAmount, true);
+      break;
+    }
+
+    case OP_SHR: {
+      const rx = byte(1) as RegIndex;
+      const ry = byte(2) as RegIndex;
+      const value = getRegValue(regs, rx);
+      const shiftAmount = getRegValue(regs, ry);
+      const result = shiftAmount >= 8 ? 0 : (value >>> shiftAmount) & 0xFF;
+      setRegValue(regs, rx, result);
+      regs.FLAGS = computeShiftFlags(value, shiftAmount, false);
+      break;
+    }
+
     // ---- Compare --------------------------------------------------------
     case OP_CMP: {
       const rx = byte(1) as RegIndex;
@@ -266,6 +322,34 @@ export function step(state: VMState): VMState {
       regs.PC = (hi << 8) | lo;
       s.cycle++;
       return s;
+    }
+
+    // ---- Video ----------------------------------------------------------
+    case OP_VSTORE: {
+      const rx = byte(1) as RegIndex;
+      const addr = addr16(2, 3);
+      if (!checkVramAddr(addr)) return halt(`VSTORE: VRAM address out of bounds: ${addr}`);
+      vram[addr] = getRegValue(regs, rx);
+      break;
+    }
+
+    case OP_VLOAD: {
+      const rx = byte(1) as RegIndex;
+      const addr = addr16(2, 3);
+      if (!checkVramAddr(addr)) return halt(`VLOAD: VRAM address out of bounds: ${addr}`);
+      setRegValue(regs, rx, vram[addr]);
+      break;
+    }
+
+    case OP_VCOPY: {
+      const rx = byte(1) as RegIndex;
+      const rxNext = ((rx + 1) & 7) as RegIndex;
+      const srcAddr = getRegValue(regs, rx) | (getRegValue(regs, rxNext) << 8);
+      if (srcAddr < 0 || srcAddr + vram.length > memSize) {
+        return halt(`VCOPY: source range out of bounds: ${srcAddr}..${srcAddr + vram.length - 1}`);
+      }
+      vram.set(mem.subarray(srcAddr, srcAddr + vram.length));
+      break;
     }
 
     default:

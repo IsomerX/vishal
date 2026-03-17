@@ -2,7 +2,9 @@ import { Token } from './types';
 
 const INSTRUCTIONS = new Set([
   'NOP', 'HLT', 'MOV', 'LOAD', 'STORE', 'ADD', 'SUB', 'INC', 'DEC',
+  'AND', 'OR', 'XOR', 'SHL', 'SHR',
   'CMP', 'JMP', 'JZ', 'JNZ', 'JG', 'JL', 'PUSH', 'POP', 'CALL', 'RET',
+  'VSTORE', 'VLOAD', 'VCOPY',
 ]);
 
 const REGISTER_RE = /^R[0-7]$/;

@@ -3,9 +3,9 @@ import { assemble } from '../../src/assembler/parser';
 import {
   OP_NOP, OP_HLT, OP_MOV_IMM, OP_MOV_REG,
   OP_LOAD_ABS, OP_STORE_ABS, OP_LOAD_IND, OP_STORE_IND,
-  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_CMP,
+  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_AND, OP_OR, OP_XOR, OP_SHL, OP_SHR, OP_CMP,
   OP_JMP, OP_JZ, OP_JNZ, OP_JG, OP_JL,
-  OP_PUSH, OP_POP, OP_CALL, OP_RET,
+  OP_PUSH, OP_POP, OP_CALL, OP_RET, OP_VSTORE, OP_VLOAD, OP_VCOPY,
 } from '../../src/vm/opcodes';
 
 describe('Assembler Parser', () => {
@@ -79,6 +79,12 @@ describe('Assembler Parser', () => {
       expect(result.errors).toEqual([]);
       expect([...result.bytecode]).toEqual([OP_LOAD_ABS, 0, 16, 0]);
     });
+
+    it('LOAD with label address resolves correctly', () => {
+      const result = assemble('value:\nDB 0x2A\nLOAD R0, [value]');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([0x2A, OP_LOAD_ABS, 0, 0x00, 0x00]);
+    });
   });
 
   describe('STORE instruction', () => {
@@ -92,6 +98,12 @@ describe('Assembler Parser', () => {
       const result = assemble('STORE [R4], R6');
       expect(result.errors).toEqual([]);
       expect([...result.bytecode]).toEqual([OP_STORE_IND, 4, 6]);
+    });
+
+    it('STORE with label address resolves correctly', () => {
+      const result = assemble('slot:\nDB 0x00\nSTORE [slot], R2');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([0x00, OP_STORE_ABS, 2, 0x00, 0x00]);
     });
   });
 
@@ -112,6 +124,36 @@ describe('Assembler Parser', () => {
       const result = assemble('CMP R6, R7');
       expect(result.errors).toEqual([]);
       expect([...result.bytecode]).toEqual([OP_CMP, 6, 7]);
+    });
+
+    it('AND R0, R1 → [0x24, 0, 1]', () => {
+      const result = assemble('AND R0, R1');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_AND, 0, 1]);
+    });
+
+    it('OR R2, R3 → [0x25, 2, 3]', () => {
+      const result = assemble('OR R2, R3');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_OR, 2, 3]);
+    });
+
+    it('XOR R4, R5 → [0x26, 4, 5]', () => {
+      const result = assemble('XOR R4, R5');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_XOR, 4, 5]);
+    });
+
+    it('SHL R6, R7 → [0x27, 6, 7]', () => {
+      const result = assemble('SHL R6, R7');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_SHL, 6, 7]);
+    });
+
+    it('SHR R1, R0 → [0x28, 1, 0]', () => {
+      const result = assemble('SHR R1, R0');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_SHR, 1, 0]);
     });
   });
 
@@ -140,6 +182,40 @@ describe('Assembler Parser', () => {
       const result = assemble('POP R7');
       expect(result.errors).toEqual([]);
       expect([...result.bytecode]).toEqual([OP_POP, 7]);
+    });
+  });
+
+  describe('VRAM instructions', () => {
+    it('VSTORE [addr], Rx → [0x60, reg, addrLo, addrHi]', () => {
+      const result = assemble('VSTORE [0x0100], R2');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_VSTORE, 2, 0x00, 0x01]);
+    });
+
+    it('VLOAD Rx, [addr] → [0x61, reg, addrLo, addrHi]', () => {
+      const result = assemble('VLOAD R3, [0x001F]');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_VLOAD, 3, 0x1F, 0x00]);
+    });
+
+    it('VCOPY Rx → [0x62, reg]', () => {
+      const result = assemble('VCOPY R0');
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([OP_VCOPY, 0]);
+    });
+
+    it('VLOAD with label resolves correctly', () => {
+      const src = 'pixel:\nDB 0x00\nVLOAD R1, [pixel]';
+      const result = assemble(src);
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([0x00, OP_VLOAD, 1, 0x00, 0x00]);
+    });
+
+    it('VSTORE with label resolves correctly', () => {
+      const src = 'target:\nDB 0x00\nVSTORE [target], R4';
+      const result = assemble(src);
+      expect(result.errors).toEqual([]);
+      expect([...result.bytecode]).toEqual([0x00, OP_VSTORE, 4, 0x00, 0x00]);
     });
   });
 

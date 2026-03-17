@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { computeFlags, checkCondition } from '../../src/vm/flags';
+import {
+  computeFlags,
+  computeBitwiseFlags,
+  computeShiftFlags,
+  checkCondition,
+} from '../../src/vm/flags';
 import { FLAG_Z, FLAG_C, FLAG_N, FLAG_V } from '../../src/vm/types';
 
 describe('computeFlags', () => {
@@ -61,5 +66,71 @@ describe('checkCondition', () => {
 
   it('JL: false when C=0', () => {
     expect(checkCondition(0x44, 0)).toBe(false);
+  });
+});
+
+describe('computeBitwiseFlags', () => {
+  it('sets Z flag when result is zero', () => {
+    expect(computeBitwiseFlags(0) & FLAG_Z).toBeTruthy();
+  });
+
+  it('clears Z flag when result is non-zero', () => {
+    expect(computeBitwiseFlags(0x0F) & FLAG_Z).toBeFalsy();
+  });
+
+  it('sets N flag when bit 7 is set', () => {
+    expect(computeBitwiseFlags(0x80) & FLAG_N).toBeTruthy();
+  });
+
+  it('clears C and V flags always', () => {
+    expect(computeBitwiseFlags(0xFF) & FLAG_C).toBeFalsy();
+    expect(computeBitwiseFlags(0xFF) & FLAG_V).toBeFalsy();
+  });
+});
+
+describe('computeShiftFlags', () => {
+  it('SHL by 1: carry is last bit shifted out (bit 7)', () => {
+    const flags = computeShiftFlags(0x80, 1, true);
+    expect(flags & FLAG_C).toBeTruthy();
+    expect(flags & FLAG_Z).toBeTruthy();
+  });
+
+  it('SHL by 1: no carry when bit 7 is 0', () => {
+    const flags = computeShiftFlags(0x40, 1, true);
+    expect(flags & FLAG_C).toBeFalsy();
+    expect(flags & FLAG_N).toBeTruthy();
+  });
+
+  it('SHR by 1: carry is last bit shifted out (bit 0)', () => {
+    const flags = computeShiftFlags(0x01, 1, false);
+    expect(flags & FLAG_C).toBeTruthy();
+    expect(flags & FLAG_Z).toBeTruthy();
+  });
+
+  it('SHR by 1: no carry when bit 0 is 0', () => {
+    const flags = computeShiftFlags(0x02, 1, false);
+    expect(flags & FLAG_C).toBeFalsy();
+  });
+
+  it('shift by 0: result unchanged, C cleared', () => {
+    const flags = computeShiftFlags(0xFF, 0, true);
+    expect(flags & FLAG_C).toBeFalsy();
+    expect(flags & FLAG_Z).toBeFalsy();
+  });
+
+  it('shift >= 8: result is 0, C is 0', () => {
+    const flags = computeShiftFlags(0xFF, 8, true);
+    expect(flags & FLAG_Z).toBeTruthy();
+    expect(flags & FLAG_C).toBeFalsy();
+  });
+
+  it('SHL by 3: carry is bit (8-3)=5 of original', () => {
+    const flags = computeShiftFlags(0x20, 3, true);
+    expect(flags & FLAG_C).toBeTruthy();
+  });
+
+  it('SHR by 3: carry is bit (3-1)=2 of original', () => {
+    const flags = computeShiftFlags(0x04, 3, false);
+    expect(flags & FLAG_C).toBeTruthy();
   });
 });

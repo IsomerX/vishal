@@ -36,6 +36,47 @@ export function computeFlags(a: number, b: number, result: number, isAddition = 
 }
 
 /**
+ * Compute flags for bitwise operations (AND, OR, XOR).
+ * Sets Z and N from the 8-bit result. Clears C and V.
+ */
+export function computeBitwiseFlags(result: number): number {
+  const result8 = result & 0xFF;
+  let flags = 0;
+
+  if (result8 === 0) flags |= FLAG_Z;
+  if (result8 & 0x80) flags |= FLAG_N;
+
+  return flags;
+}
+
+/**
+ * Compute flags for logical shifts.
+ * Sets Z and N from the shifted result, sets C to the last bit shifted out,
+ * and always clears V.
+ */
+export function computeShiftFlags(original: number, shiftAmount: number, isLeft: boolean): number {
+  const value = original & 0xFF;
+  const amount = shiftAmount & 0xFF;
+  const result =
+    amount >= 8
+      ? 0
+      : isLeft
+        ? (value << amount) & 0xFF
+        : (value >>> amount) & 0xFF;
+
+  let flags = computeBitwiseFlags(result);
+
+  if (amount > 0 && amount < 8) {
+    const carry = isLeft
+      ? (value >> (8 - amount)) & 0x01
+      : (value >> (amount - 1)) & 0x01;
+    if (carry !== 0) flags |= FLAG_C;
+  }
+
+  return flags;
+}
+
+/**
  * Check if a conditional jump should be taken given the current flags.
  */
 export function checkCondition(opcode: number, flags: number): boolean {

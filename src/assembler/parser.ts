@@ -3,9 +3,9 @@ import { tokenize } from './lexer';
 import {
   OP_NOP, OP_HLT, OP_MOV_IMM, OP_MOV_REG,
   OP_LOAD_ABS, OP_STORE_ABS, OP_LOAD_IND, OP_STORE_IND,
-  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_CMP,
+  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_AND, OP_OR, OP_XOR, OP_SHL, OP_SHR, OP_CMP,
   OP_JMP, OP_JZ, OP_JNZ, OP_JG, OP_JL,
-  OP_PUSH, OP_POP, OP_CALL, OP_RET,
+  OP_PUSH, OP_POP, OP_CALL, OP_RET, OP_VSTORE, OP_VLOAD, OP_VCOPY,
 } from '../vm/opcodes';
 
 /** Map register name to number: R0=0, R1=1, ..., R7=7 */
@@ -44,6 +44,27 @@ interface LabelPatch {
   label: string;
   /** Source line number for error reporting */
   line: number;
+}
+
+function findBracketOperand(operands: Token[]): {
+  innerReg?: Token;
+  innerNum?: Token;
+  innerLabel?: Token;
+  valid: boolean;
+} {
+  const lbIdx = operands.findIndex(t => t.type === 'LBRACKET');
+  const rbIdx = operands.findIndex(t => t.type === 'RBRACKET');
+  if (lbIdx === -1 || rbIdx === -1 || rbIdx <= lbIdx) {
+    return { valid: false };
+  }
+
+  const bracketContent = operands.slice(lbIdx + 1, rbIdx);
+  return {
+    innerReg: bracketContent.find(t => t.type === 'REGISTER'),
+    innerNum: bracketContent.find(t => t.type === 'NUMBER'),
+    innerLabel: bracketContent.find(t => t.type === 'LABEL_REF'),
+    valid: true,
+  };
 }
 
 export function assemble(source: string): AssemblerResult {
@@ -160,20 +181,19 @@ export function assemble(source: string): AssemblerResult {
           // LOAD Rx, [addr] | LOAD Rx, [Ry]
           // Token sequence: REGISTER COMMA LBRACKET (REGISTER|NUMBER) RBRACKET
           const destReg = operands.find(t => t.type === 'REGISTER');
-          const lbIdx = operands.findIndex(t => t.type === 'LBRACKET');
-          const rbIdx = operands.findIndex(t => t.type === 'RBRACKET');
+          const { innerReg, innerNum, innerLabel, valid } = findBracketOperand(operands);
 
-          if (destReg && lbIdx !== -1 && rbIdx !== -1) {
-            const bracketContent = operands.slice(lbIdx + 1, rbIdx);
-            const innerReg = bracketContent.find(t => t.type === 'REGISTER');
-            const innerNum = bracketContent.find(t => t.type === 'NUMBER');
-
+          if (destReg && valid) {
             if (innerReg) {
               output.push(OP_LOAD_IND, regNum(destReg), regNum(innerReg));
             } else if (innerNum) {
               const addr = parseNum(innerNum.value);
               const [lo, hi] = addrBytes(addr);
               output.push(OP_LOAD_ABS, regNum(destReg), lo, hi);
+            } else if (innerLabel) {
+              output.push(OP_LOAD_ABS, regNum(destReg));
+              patches.push({ offset: output.length, label: innerLabel.value, line: lineNum });
+              output.push(0x00, 0x00);
             } else {
               errors.push({ message: `Invalid LOAD operands`, line: lineNum });
             }
@@ -185,16 +205,12 @@ export function assemble(source: string): AssemblerResult {
         case 'STORE': {
           // STORE [addr], Rx | STORE [Rx], Ry
           // Token sequence: LBRACKET (REGISTER|NUMBER) RBRACKET COMMA REGISTER
-          const lbIdx = operands.findIndex(t => t.type === 'LBRACKET');
-          const rbIdx = operands.findIndex(t => t.type === 'RBRACKET');
           const commaIdx = operands.findIndex(t => t.type === 'COMMA');
+          const { innerReg, innerNum, innerLabel, valid } = findBracketOperand(operands);
 
-          if (lbIdx !== -1 && rbIdx !== -1 && commaIdx !== -1) {
-            const bracketContent = operands.slice(lbIdx + 1, rbIdx);
+          if (valid && commaIdx !== -1) {
             const afterComma = operands.slice(commaIdx + 1);
             const srcReg = afterComma.find(t => t.type === 'REGISTER');
-            const innerReg = bracketContent.find(t => t.type === 'REGISTER');
-            const innerNum = bracketContent.find(t => t.type === 'NUMBER');
 
             if (innerReg && srcReg) {
               output.push(OP_STORE_IND, regNum(innerReg), regNum(srcReg));
@@ -202,6 +218,10 @@ export function assemble(source: string): AssemblerResult {
               const addr = parseNum(innerNum.value);
               const [lo, hi] = addrBytes(addr);
               output.push(OP_STORE_ABS, regNum(srcReg), lo, hi);
+            } else if (innerLabel && srcReg) {
+              output.push(OP_STORE_ABS, regNum(srcReg));
+              patches.push({ offset: output.length, label: innerLabel.value, line: lineNum });
+              output.push(0x00, 0x00);
             } else {
               errors.push({ message: `Invalid STORE operands`, line: lineNum });
             }
@@ -212,6 +232,11 @@ export function assemble(source: string): AssemblerResult {
         }
         case 'ADD':
         case 'SUB':
+        case 'AND':
+        case 'OR':
+        case 'XOR':
+        case 'SHL':
+        case 'SHR':
         case 'CMP': {
           // Two-register instructions: INSTR Rx, Ry
           const reg1 = operands.find(t => t.type === 'REGISTER');
@@ -222,6 +247,11 @@ export function assemble(source: string): AssemblerResult {
           const opMap: Record<string, number> = {
             ADD: OP_ADD,
             SUB: OP_SUB,
+            AND: OP_AND,
+            OR: OP_OR,
+            XOR: OP_XOR,
+            SHL: OP_SHL,
+            SHR: OP_SHR,
             CMP: OP_CMP,
           };
 
@@ -249,6 +279,67 @@ export function assemble(source: string): AssemblerResult {
             output.push(instr === 'PUSH' ? OP_PUSH : OP_POP, regNum(reg));
           } else {
             errors.push({ message: `Invalid ${instr} operands`, line: lineNum });
+          }
+          break;
+        }
+        case 'VCOPY': {
+          const reg = operands.find(t => t.type === 'REGISTER');
+          if (reg) {
+            output.push(OP_VCOPY, regNum(reg));
+          } else {
+            errors.push({ message: `Invalid VCOPY operand`, line: lineNum });
+          }
+          break;
+        }
+        case 'VLOAD': {
+          const destReg = operands.find(t => t.type === 'REGISTER');
+          const { innerNum, innerLabel, valid } = findBracketOperand(operands);
+
+          if (destReg && valid) {
+            output.push(OP_VLOAD, regNum(destReg));
+            if (innerLabel) {
+              patches.push({ offset: output.length, label: innerLabel.value, line: lineNum });
+              output.push(0x00, 0x00);
+            } else if (innerNum) {
+              const addr = parseNum(innerNum.value);
+              const [lo, hi] = addrBytes(addr);
+              output.push(lo, hi);
+            } else {
+              errors.push({ message: `Invalid VLOAD operands`, line: lineNum });
+              output.push(0x00, 0x00);
+            }
+          } else {
+            errors.push({ message: `Invalid VLOAD syntax`, line: lineNum });
+          }
+          break;
+        }
+        case 'VSTORE': {
+          const commaIdx = operands.findIndex(t => t.type === 'COMMA');
+          const { innerNum, innerLabel, valid } = findBracketOperand(operands);
+
+          if (valid && commaIdx !== -1) {
+            const afterComma = operands.slice(commaIdx + 1);
+            const srcReg = afterComma.find(t => t.type === 'REGISTER');
+
+            if (!srcReg) {
+              errors.push({ message: `Invalid VSTORE operands`, line: lineNum });
+              break;
+            }
+
+            output.push(OP_VSTORE, regNum(srcReg));
+            if (innerLabel) {
+              patches.push({ offset: output.length, label: innerLabel.value, line: lineNum });
+              output.push(0x00, 0x00);
+            } else if (innerNum) {
+              const addr = parseNum(innerNum.value);
+              const [lo, hi] = addrBytes(addr);
+              output.push(lo, hi);
+            } else {
+              errors.push({ message: `Invalid VSTORE operands`, line: lineNum });
+              output.push(0x00, 0x00);
+            }
+          } else {
+            errors.push({ message: `Invalid VSTORE syntax`, line: lineNum });
           }
           break;
         }

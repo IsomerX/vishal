@@ -14,6 +14,7 @@ export interface Registers {
 
 export interface VMState {
   memory: Uint8Array;
+  vram: Uint8Array;
   registers: Registers;
   halted: boolean;
   error?: string;

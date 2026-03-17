@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { createVM, cloneState, step } from '../../src/vm/vm';
-import { VMState, FLAG_Z, FLAG_C, FLAG_N, getRegValue, setRegValue } from '../../src/vm/types';
+import { VMState, FLAG_Z, FLAG_C, FLAG_N, getRegValue } from '../../src/vm/types';
 import {
   OP_NOP, OP_HLT,
   OP_MOV_IMM, OP_MOV_REG,
   OP_LOAD_ABS, OP_STORE_ABS, OP_LOAD_IND, OP_STORE_IND,
-  OP_ADD, OP_SUB, OP_INC, OP_DEC,
+  OP_ADD, OP_SUB, OP_INC, OP_DEC, OP_AND, OP_OR, OP_XOR, OP_SHL, OP_SHR,
   OP_CMP,
   OP_JMP, OP_JZ, OP_JNZ, OP_JG, OP_JL,
-  OP_PUSH, OP_POP, OP_CALL, OP_RET,
+  OP_PUSH, OP_POP, OP_CALL, OP_RET, OP_VSTORE, OP_VLOAD, OP_VCOPY,
   INSTRUCTION_SIZE,
 } from '../../src/vm/opcodes';
 
@@ -23,6 +23,7 @@ describe('createVM', () => {
   it('creates a VM with default memory size 4096', () => {
     const vm = createVM();
     expect(vm.memory.length).toBe(4096);
+    expect(vm.vram.length).toBe(1024);
   });
 
   it('creates a VM with custom memory size', () => {
@@ -83,6 +84,15 @@ describe('cloneState', () => {
     clone.registers.R0 = 99;
     expect(vm.registers.R0).toBe(42);
     expect(clone.registers.R0).toBe(99);
+  });
+
+  it('returns a deep copy with independent VRAM', () => {
+    const vm = createVM();
+    vm.vram[0] = 0xAA;
+    const clone = cloneState(vm);
+    clone.vram[0] = 0xBB;
+    expect(vm.vram[0]).toBe(0xAA);
+    expect(clone.vram[0]).toBe(0xBB);
   });
 });
 
@@ -314,6 +324,130 @@ describe('step — CMP', () => {
     const next = step(vm);
     expect(next.registers.FLAGS & FLAG_C).toBeFalsy();
     expect(next.registers.FLAGS & FLAG_Z).toBeFalsy();
+  });
+});
+
+describe('step — bitwise ops', () => {
+  it('AND stores Rx & Ry in Rx and updates flags', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0b11001100;
+    vm.registers.R1 = 0b10101010;
+    writeBytes(vm, 0, [OP_AND, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0b10001000);
+    expect(next.registers.FLAGS & FLAG_N).toBeTruthy();
+    expect(next.registers.FLAGS & FLAG_C).toBeFalsy();
+  });
+
+  it('OR stores Rx | Ry in Rx', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0b00001111;
+    vm.registers.R1 = 0b11110000;
+    writeBytes(vm, 0, [OP_OR, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0xFF);
+    expect(next.registers.FLAGS & FLAG_N).toBeTruthy();
+  });
+
+  it('XOR sets Z when the result is zero', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0xAA;
+    vm.registers.R1 = 0xAA;
+    writeBytes(vm, 0, [OP_XOR, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0);
+    expect(next.registers.FLAGS & FLAG_Z).toBeTruthy();
+  });
+});
+
+describe('step — shifts', () => {
+  it('SHL shifts left using Ry as the shift amount', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0x11;
+    vm.registers.R1 = 1;
+    writeBytes(vm, 0, [OP_SHL, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0x22);
+    expect(next.registers.FLAGS & FLAG_C).toBeFalsy();
+  });
+
+  it('SHL sets carry to the last bit shifted out', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0x80;
+    vm.registers.R1 = 1;
+    writeBytes(vm, 0, [OP_SHL, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0);
+    expect(next.registers.FLAGS & FLAG_C).toBeTruthy();
+    expect(next.registers.FLAGS & FLAG_Z).toBeTruthy();
+  });
+
+  it('SHR shifts right using Ry as the shift amount', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0x10;
+    vm.registers.R1 = 2;
+    writeBytes(vm, 0, [OP_SHR, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0x04);
+    expect(next.registers.FLAGS & FLAG_C).toBeFalsy();
+  });
+
+  it('shift amounts >= 8 zero the result', () => {
+    const vm = createVM();
+    vm.registers.R0 = 0xFF;
+    vm.registers.R1 = 8;
+    writeBytes(vm, 0, [OP_SHR, 0, 1]);
+    const next = step(vm);
+    expect(next.registers.R0).toBe(0);
+    expect(next.registers.FLAGS & FLAG_Z).toBeTruthy();
+  });
+});
+
+describe('step — VRAM', () => {
+  it('VSTORE then VLOAD round-trips a VRAM byte', () => {
+    const vm = createVM();
+    vm.registers.R4 = 0xAB;
+    writeBytes(vm, 0, [OP_VSTORE, 4, 0x05, 0x00]);
+    const s1 = step(vm);
+    expect(s1.vram[5]).toBe(0xAB);
+
+    writeBytes(s1, s1.registers.PC, [OP_VLOAD, 2, 0x05, 0x00]);
+    const s2 = step(s1);
+    expect(s2.registers.R2).toBe(0xAB);
+  });
+
+  it('VCOPY copies 1024 bytes from main memory into VRAM', () => {
+    const vm = createVM(2048);
+    vm.registers.R0 = 0x00;
+    vm.registers.R1 = 0x02;
+    for (let i = 0; i < 1024; i++) {
+      vm.memory[0x0200 + i] = i & 0xFF;
+    }
+    writeBytes(vm, 0, [OP_VCOPY, 0]);
+    const next = step(vm);
+    expect(next.vram[0]).toBe(0);
+    expect(next.vram[1]).toBe(1);
+    expect(next.vram[255]).toBe(255);
+    expect(next.vram[256]).toBe(0);
+    expect(next.vram[1023]).toBe(255);
+  });
+
+  it('halts on out-of-bounds VRAM access', () => {
+    const vm = createVM();
+    writeBytes(vm, 0, [OP_VLOAD, 0, 0x00, 0x04]);
+    const next = step(vm);
+    expect(next.halted).toBe(true);
+    expect(next.error).toMatch(/VRAM address out of bounds/);
+  });
+
+  it('halts when VCOPY source range exceeds memory', () => {
+    const vm = createVM(1024);
+    vm.registers.R0 = 1;
+    vm.registers.R1 = 0;
+    writeBytes(vm, 0, [OP_VCOPY, 0]);
+    const next = step(vm);
+    expect(next.halted).toBe(true);
+    expect(next.error).toMatch(/source range out of bounds/);
   });
 });
 

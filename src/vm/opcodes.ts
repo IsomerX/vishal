@@ -11,6 +11,11 @@ export const OP_ADD   = 0x20;
 export const OP_SUB   = 0x21;
 export const OP_INC   = 0x22;
 export const OP_DEC   = 0x23;
+export const OP_AND   = 0x24;
+export const OP_OR    = 0x25;
+export const OP_XOR   = 0x26;
+export const OP_SHL   = 0x27;
+export const OP_SHR   = 0x28;
 export const OP_CMP   = 0x30;
 export const OP_JMP   = 0x40;
 export const OP_JZ    = 0x41;
@@ -21,6 +26,9 @@ export const OP_PUSH  = 0x50;
 export const OP_POP   = 0x51;
 export const OP_CALL  = 0x52;
 export const OP_RET   = 0x53;
+export const OP_VSTORE = 0x60;
+export const OP_VLOAD  = 0x61;
+export const OP_VCOPY  = 0x62;
 
 // Instruction sizes in bytes
 export const INSTRUCTION_SIZE: Record<number, number> = {
@@ -36,6 +44,11 @@ export const INSTRUCTION_SIZE: Record<number, number> = {
   [OP_SUB]: 3,
   [OP_INC]: 2,
   [OP_DEC]: 2,
+  [OP_AND]: 3,
+  [OP_OR]: 3,
+  [OP_XOR]: 3,
+  [OP_SHL]: 3,
+  [OP_SHR]: 3,
   [OP_CMP]: 3,
   [OP_JMP]: 3,
   [OP_JZ]: 3,
@@ -46,6 +59,9 @@ export const INSTRUCTION_SIZE: Record<number, number> = {
   [OP_POP]: 2,
   [OP_CALL]: 3,
   [OP_RET]: 1,
+  [OP_VSTORE]: 4,
+  [OP_VLOAD]: 4,
+  [OP_VCOPY]: 2,
 };
 
 // Human-readable mnemonic names (for disassembly in the detail panel)
@@ -62,6 +78,11 @@ export const OPCODE_NAMES: Record<number, string> = {
   [OP_SUB]: 'SUB',
   [OP_INC]: 'INC',
   [OP_DEC]: 'DEC',
+  [OP_AND]: 'AND',
+  [OP_OR]: 'OR',
+  [OP_XOR]: 'XOR',
+  [OP_SHL]: 'SHL',
+  [OP_SHR]: 'SHR',
   [OP_CMP]: 'CMP',
   [OP_JMP]: 'JMP',
   [OP_JZ]: 'JZ',
@@ -72,4 +93,7 @@ export const OPCODE_NAMES: Record<number, string> = {
   [OP_POP]: 'POP',
   [OP_CALL]: 'CALL',
   [OP_RET]: 'RET',
+  [OP_VSTORE]: 'VSTORE',
+  [OP_VLOAD]: 'VLOAD',
+  [OP_VCOPY]: 'VCOPY',
 };

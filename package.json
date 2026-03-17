@@ -1,5 +1,5 @@
 {
-  "name": "program-in-browser-memory",
+  "name": "vishal",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,5 +14,8 @@
     "typescript": "~5.7.2",
     "vite": "^6.3.1",
     "vitest": "^3.1.1"
+  },
+  "dependencies": {
+    "three": "^0.183.2"
   }
 }

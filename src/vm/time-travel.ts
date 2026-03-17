@@ -5,7 +5,7 @@ export class TimeTravel {
   private history: VMState[] = [];
   private maxSize: number;
 
-  constructor(maxSize = 100_000) {
+  constructor(maxSize = 50_000) {
     this.maxSize = maxSize;
   }
 

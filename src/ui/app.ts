@@ -3,6 +3,7 @@ import { createVM } from '../vm/vm';
 import { TimeTravel } from '../vm/time-travel';
 import { HexGridRenderer } from '../renderer/hex-grid';
 import { updateRegisters, updateCurrentInstruction, updateStackView } from '../renderer/detail-panel';
+import { updateNarration, updateMemoryStats, computeMemoryStats } from '../renderer/narration';
 import { AssemblerResult } from '../assembler/types';
 import { assemble } from '../assembler/parser';
 import { createController, VMController } from './controls';
@@ -24,6 +25,8 @@ function init(): void {
   const cycleCountEl = getEl<HTMLSpanElement>('cycle-count');
   const errorSection = getEl<HTMLElement>('error-section');
   const errorMessage = getEl<HTMLDivElement>('error-message');
+  const narrationEl = getEl<HTMLDivElement>('narration');
+  const memoryStatsEl = getEl<HTMLDivElement>('memory-stats');
 
   const btnStep = getEl<HTMLButtonElement>('btn-step');
   const btnStepBack = getEl<HTMLButtonElement>('btn-step-back');
@@ -56,6 +59,13 @@ function init(): void {
     updateCurrentInstruction(instructionEl, state);
     updateStackView(stackEl, state);
     cycleCountEl.textContent = state.cycle.toString();
+
+    // Narration — human-readable description of next instruction
+    updateNarration(narrationEl, state);
+
+    // Memory stats
+    const codeEnd = currentMetadata ? currentMetadata.codeEnd : -1;
+    updateMemoryStats(memoryStatsEl, computeMemoryStats(state, codeEnd));
 
     // Error display
     if (state.error) {

@@ -1,3 +1,4 @@
+import { inject } from '@vercel/analytics';
 import { VMState } from '../vm/types';
 import { createVM } from '../vm/vm';
 import { TimeTravel } from '../vm/time-travel';
@@ -278,4 +279,5 @@ function init(): void {
 }
 
 // Boot
+inject();
 init();

@@ -1,13 +1,80 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Program in Browser Memory</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browser VM</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Browser VM</h1>
+      <div id="memory-config">
+        <label>Memory:
+          <select id="memory-size">
+            <option value="256">256 B</option>
+            <option value="1024">1 KB</option>
+            <option value="4096" selected>4 KB</option>
+            <option value="16384">16 KB</option>
+            <option value="65536">64 KB</option>
+          </select>
+        </label>
+      </div>
+    </header>
+    <main>
+      <div id="grid-container">
+        <canvas id="hex-grid"></canvas>
+      </div>
+      <aside id="detail-panel">
+        <section id="registers-section">
+          <h3>Registers</h3>
+          <div id="registers"></div>
+        </section>
+        <section id="instruction-section">
+          <h3>Current Instruction</h3>
+          <div id="current-instruction">—</div>
+        </section>
+        <section id="stack-section">
+          <h3>Stack</h3>
+          <div id="stack-view"></div>
+        </section>
+        <section id="controls-section">
+          <div id="transport">
+            <button id="btn-step-back" title="Step Back">&#9664;</button>
+            <button id="btn-step" title="Step">Step</button>
+            <button id="btn-run" title="Run/Pause">Run</button>
+            <button id="btn-reset" title="Reset">Reset</button>
+          </div>
+          <div id="speed-control">
+            <label>Speed: <input type="range" id="speed-slider" min="0" max="100" value="50"></label>
+            <span id="speed-display">100/s</span>
+          </div>
+          <div id="cycle-display">Cycle: <span id="cycle-count">0</span></div>
+        </section>
+        <section id="error-section" hidden>
+          <div id="error-message"></div>
+        </section>
+      </aside>
+    </main>
+    <footer>
+      <div id="editor-container">
+        <div id="editor-header">
+          <label>Examples:
+            <select id="examples-dropdown">
+              <option value="">— Select —</option>
+              <option value="bubble-sort">Bubble Sort</option>
+              <option value="counter">Counter</option>
+              <option value="fibonacci">Fibonacci</option>
+            </select>
+          </label>
+          <button id="btn-assemble">Assemble &amp; Load</button>
+        </div>
+        <textarea id="code-editor" spellcheck="false" placeholder="Write assembly here..."></textarea>
+        <div id="assembler-errors"></div>
+      </div>
+    </footer>
+  </div>
+  <script type="module" src="/src/ui/app.ts"></script>
+</body>
 </html>
